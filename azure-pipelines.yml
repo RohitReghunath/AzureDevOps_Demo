@@ -52,15 +52,8 @@ stages:
             "$(JMETER_HOME)\\bin\\jmeter.bat" -n -t "$(Build.SourcesDirectory)\\$(TEST_SCRIPT)" -l "$(Build.SourcesDirectory)\\$(RESULTS_FILE)" -e -o "$(Build.SourcesDirectory)\\$(REPORT_DIR)"
           displayName: 'Run JMeter Test'
 
-# Stage 3: Publish Results
-- stage: PublishResults
-  displayName: 'Publish JMeter Results'
-  dependsOn: RunJMeterTest
-  jobs:
-    - job: PublishResults
-      steps:
         - task: PublishBuildArtifacts@1
           inputs:
-            PathtoPublish: '$(Build.SourcesDirectory)\\$(REPORT_DIR)'
+            PathtoPublish: '$(Build.SourcesDirectory)\$(REPORT_DIR)'
             ArtifactName: 'JMeterResults'
             publishLocation: 'Container'
