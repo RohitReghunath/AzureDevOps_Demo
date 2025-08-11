@@ -1,13 +1,13 @@
 trigger:
   branches:
     include:
-      - main  # This will trigger the pipeline on commits to the main branch
+      - main  # Trigger pipeline on commits to main branch
 
 pool:
-  vmImage: 'windows-latest'  # Using a Microsoft-hosted Windows agent
+  vmImage: 'windows-latest'  # Use Windows agent
 
 variables:
-  JMETER_HOME: 'C:\\apache-jmeter-5.6.3\\bin'  # Correct path for Windows agents
+  JMETER_HOME: 'C:\apache-jmeter-5.6.3\bin'
   TEST_SCRIPT: 'Jpetstore_Demo.jmx'
   RESULTS_FILE: 'results.jtl'
   REPORT_DIR: 'jmeter-report'
@@ -19,17 +19,9 @@ stages:
     - job: InstallJMeter
       steps:
         - powershell: |
-            echo "Installing JMeter..."
-            $url = "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.zip"
-            $output = "apache-jmeter-5.6.3.zip"
-            Invoke-WebRequest -Uri $url -OutFile $output
-            Expand-Archive -Path $output -DestinationPath 'C:\'
-            # Check if JMeter exists after extraction
-            if (Test-Path "C:\apache-jmeter-5.6.3\bin\jmeter.bat") {
-              Write-Host "JMeter successfully installed!"
-            } else {
-              Write-Host "JMeter installation failed!"
-            }
+            Write-Host "Installing JMeter..."
+            Invoke-WebRequest -Uri https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.zip -OutFile apache-jmeter.zip
+            Expand-Archive -Path apache-jmeter.zip -DestinationPath C:\
           displayName: 'Install JMeter'
 
 - stage: RunJMeterTest
@@ -38,13 +30,8 @@ stages:
     - job: RunTest
       steps:
         - script: |
-            echo "Running JMeter Test on Windows..."
-            if (Test-Path "%JMETER_HOME%\\jmeter.bat") {
-              "%JMETER_HOME%\\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
-            } else {
-              echo "JMeter not found at %JMETER_HOME%"
-              exit 1
-            }
+            echo Running JMeter Test on Windows...
+            call "$(JMETER_HOME)\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
           displayName: 'Run JMeter Test'
 
 - stage: PublishResults
@@ -54,6 +41,6 @@ stages:
       steps:
         - task: PublishBuildArtifacts@1
           inputs:
-            PathtoPublish: '$(Build.SourcesDirectory)/$(REPORT_DIR)'
+            PathtoPublish: '$(Build.SourcesDirectory)\$(REPORT_DIR)'
             ArtifactName: 'JMeterResults'
             publishLocation: 'Container'
