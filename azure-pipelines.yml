@@ -31,7 +31,11 @@ stages:
       steps:
         - script: |
             echo "Running JMeter Test..."
-            ./apache-jmeter-5.6.3/bin/jmeter -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
+            if [[ "$(Agent.OS)" == "Linux" ]]; then
+              ./apache-jmeter-5.6.3/bin/jmeter -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)  # For Linux
+            elif [[ "$(Agent.OS)" == "Windows_NT" ]]; then
+              ./apache-jmeter-5.6.3/bin/jmeter.bat -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)  # For Windows
+            fi
           displayName: 'Run JMeter Test'
 
 - stage: PublishResults
