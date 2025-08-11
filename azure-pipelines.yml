@@ -2,7 +2,8 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  JMETER_HOME: '$(Build.SourcesDirectory)\apache-jmeter-5.6.3'
+  JMETER_VERSION: '5.6.3'
+  JMETER_HOME: '$(Build.SourcesDirectory)\apache-jmeter-$(JMETER_VERSION)'
   TEST_SCRIPT: 'Jpetstore_Demo.jmx'
   RESULTS_FILE: 'results.jtl'
   REPORT_DIR: 'jmeter-report'
@@ -15,22 +16,27 @@ stages:
       steps:
         - script: |
             echo Installing JMeter on Windows...
-            curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.zip -o jmeter.zip
+            cd "$(Build.SourcesDirectory)"
+            curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).zip -o jmeter.zip
             tar -xf jmeter.zip
+            dir
           displayName: 'Download & Extract JMeter'
 
 - stage: RunJMeterTest
   displayName: 'Run JMeter Test'
+  dependsOn: InstallJMeter
   jobs:
     - job: RunTest
       steps:
         - script: |
             echo Running JMeter Test on Windows...
-            call "$(JMETER_HOME)\bin\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
+            cd "$(Build.SourcesDirectory)"
+            call "$(JMETER_HOME)\bin\jmeter.bat" -n -t "$(Build.SourcesDirectory)\$(TEST_SCRIPT)" -l "$(Build.SourcesDirectory)\$(RESULTS_FILE)" -e -o "$(Build.SourcesDirectory)\$(REPORT_DIR)"
           displayName: 'Run JMeter Test'
 
 - stage: PublishResults
   displayName: 'Publish Results'
+  dependsOn: RunJMeterTest
   jobs:
     - job: PublishResults
       steps:
