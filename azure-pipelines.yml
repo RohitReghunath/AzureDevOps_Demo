@@ -24,6 +24,12 @@ stages:
             $output = "apache-jmeter-5.6.3.zip"
             Invoke-WebRequest -Uri $url -OutFile $output
             Expand-Archive -Path $output -DestinationPath 'C:\'
+            # Check if JMeter exists after extraction
+            if (Test-Path "C:\apache-jmeter-5.6.3\bin\jmeter.bat") {
+              Write-Host "JMeter successfully installed!"
+            } else {
+              Write-Host "JMeter installation failed!"
+            }
           displayName: 'Install JMeter'
 
 - stage: RunJMeterTest
@@ -33,7 +39,12 @@ stages:
       steps:
         - script: |
             echo "Running JMeter Test on Windows..."
-            "%JMETER_HOME%\\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)  # For Windows
+            if (Test-Path "%JMETER_HOME%\\jmeter.bat") {
+              "%JMETER_HOME%\\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
+            } else {
+              echo "JMeter not found at %JMETER_HOME%"
+              exit 1
+            }
           displayName: 'Run JMeter Test'
 
 - stage: PublishResults
