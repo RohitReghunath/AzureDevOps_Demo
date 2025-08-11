@@ -1,19 +1,35 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
-- main
+  branches:
+    include:
+      - main  # This will trigger the pipeline on commits to the main branch
 
 pool:
-  vmImage: ubuntu-latest
+  vmImage: 'windows-latest'  # Using a Microsoft-hosted Windows agent
 
-steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+variables:
+  JMETER_HOME: 'C:\\apache-jmeter-5.6.3\\bin'  # Correct path for Windows-based agent
+  TEST_SCRIPT: 'Jpetstore_Demo.jmx'
+  RESULTS_FILE: 'results.jtl'
+  REPORT_DIR: 'jmeter-report'
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+stages:
+- stage: RunJMeterTest
+  displayName: 'Run JMeter Test'
+  jobs:
+    - job: RunTest
+      steps:
+        - script: |
+            echo "Running JMeter Test on Windows..."
+            "%JMETER_HOME%\\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
+          displayName: 'Run JMeter Test'
+
+- stage: PublishResults
+  displayName: 'Publish Results'
+  jobs:
+    - job: PublishResults
+      steps:
+        - task: PublishBuildArtifacts@1
+          inputs:
+            PathtoPublish: '$(Build.SourcesDirectory)/$(REPORT_DIR)'
+            ArtifactName: 'JMeterResults'
+            publishLocation: 'Container'
