@@ -4,23 +4,34 @@ trigger:
       - main  # This will trigger the pipeline on commits to the main branch
 
 pool:
-  vmImage: 'windows-latest'  # Using a Microsoft-hosted Windows agent
+  vmImage: 'ubuntu-latest'  # Using a Microsoft-hosted Ubuntu agent
 
 variables:
-  JMETER_HOME: 'C:\\apache-jmeter-5.6.3\\bin'  # Correct path for Windows-based agent
+  JMETER_HOME: '/home/$(Build.UserName)/apache-jmeter-5.6.3'
   TEST_SCRIPT: 'Jpetstore_Demo.jmx'
   RESULTS_FILE: 'results.jtl'
   REPORT_DIR: 'jmeter-report'
 
 stages:
+- stage: InstallJMeter
+  displayName: 'Install JMeter'
+  jobs:
+    - job: InstallJMeter
+      steps:
+        - script: |
+            echo "Installing JMeter..."
+            wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+            tar -xvzf apache-jmeter-5.6.3.tgz
+          displayName: 'Install JMeter'
+
 - stage: RunJMeterTest
   displayName: 'Run JMeter Test'
   jobs:
     - job: RunTest
       steps:
         - script: |
-            echo "Running JMeter Test on Windows..."
-            "%JMETER_HOME%\\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
+            echo "Running JMeter Test..."
+            ./apache-jmeter-5.6.3/bin/jmeter -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
           displayName: 'Run JMeter Test'
 
 - stage: PublishResults
