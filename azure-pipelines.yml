@@ -1,13 +1,8 @@
-trigger:
-  branches:
-    include:
-      - main  # Trigger pipeline on commits to main branch
-
 pool:
-  vmImage: 'windows-latest'  # Use Windows agent
+  vmImage: 'windows-latest'
 
 variables:
-  JMETER_HOME: 'C:\apache-jmeter-5.6.3\bin'
+  JMETER_HOME: '$(Build.SourcesDirectory)\apache-jmeter-5.6.3'
   TEST_SCRIPT: 'Jpetstore_Demo.jmx'
   RESULTS_FILE: 'results.jtl'
   REPORT_DIR: 'jmeter-report'
@@ -18,11 +13,11 @@ stages:
   jobs:
     - job: InstallJMeter
       steps:
-        - powershell: |
-            Write-Host "Installing JMeter..."
-            Invoke-WebRequest -Uri https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.zip -OutFile apache-jmeter.zip
-            Expand-Archive -Path apache-jmeter.zip -DestinationPath C:\
-          displayName: 'Install JMeter'
+        - script: |
+            echo Installing JMeter on Windows...
+            curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.zip -o jmeter.zip
+            tar -xf jmeter.zip
+          displayName: 'Download & Extract JMeter'
 
 - stage: RunJMeterTest
   displayName: 'Run JMeter Test'
@@ -31,7 +26,7 @@ stages:
       steps:
         - script: |
             echo Running JMeter Test on Windows...
-            call "$(JMETER_HOME)\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
+            call "$(JMETER_HOME)\bin\jmeter.bat" -n -t $(TEST_SCRIPT) -l $(RESULTS_FILE) -e -o $(REPORT_DIR)
           displayName: 'Run JMeter Test'
 
 - stage: PublishResults
