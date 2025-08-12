@@ -1,59 +1,90 @@
 trigger:
-- main  # Change to your branch
+- none  # Trigger is defined in schedule, no auto trigger on push.
 
-pool:
-  vmImage: 'windows-latest'
+schedules:
+- cron: "0 0 * * *"  # This triggers every day at midnight (adjust the cron expression as needed).
+  displayName: "Daily Trigger"
+  branches:
+    include:
+      - main
 
 variables:
-  JMETER_VERSION: '5.6.3'
-  JMETER_HOME: '$(Pipeline.Workspace)\\JMeterHome'
-  TEST_SCRIPT: 'Jpetstore_Demo.jmx'
-  RESULTS_FILE: 'results.jtl'
-  REPORT_DIR: 'jmeter-report'
+  uniqueTimestamp: "$(Build.BuildId)"  # Using Build.BuildId as unique identifier
+  jtlFileName: "result-$(Build.BuildId).jtl"  # JTL file name using BuildId
+  reportFolderName: "jmeter-report-$(Build.BuildId)"  # Unique report folder name using BuildId
 
 stages:
-# Stage 1: Install JMeter
-- stage: InstallJMeter
-  displayName: 'Install JMeter'
-  jobs:
-    - job: InstallJMeter
-      steps:
-        - script: |
-            echo Installing JMeter...
-            cd "$(Build.SourcesDirectory)"
-            curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).zip -o jmeter.zip
-            tar -xf jmeter.zip
-            dir
-          displayName: 'Download & Extract JMeter'
-        
-        - task: PublishBuildArtifacts@1
-          inputs:
-            PathtoPublish: '$(Build.SourcesDirectory)\\apache-jmeter-$(JMETER_VERSION)'
-            ArtifactName: 'JMeterHome'
-            publishLocation: 'Container'
+  - stage: Prepare
+    jobs:
+      - job: PrepareEnvironment
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: JavaToolInstaller@0
+            inputs:
+              versionSpec: '1.8'
+              jdkArchitectureOption: 'x64'
+              jdkSourceOption: 'PreInstalled'
+            displayName: 'Install JDK 1.8'
+          - script: |
+              # Install dependencies
+              sudo apt-get update
+              sudo apt-get install -y wget unzip
+              wget https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
+              tar -xvzf apache-jmeter-5.6.3.tgz
+              export JMETER_HOME=$(pwd)/apache-jmeter-5.6.3
+              echo "##vso[task.setvariable variable=JMETER_HOME]$JMETER_HOME"
+            displayName: 'Install JMeter 5.6.3'
 
-# Stage 2: Run JMeter Test
-- stage: RunJMeterTest
-  displayName: 'Run JMeter Test'
-  dependsOn: InstallJMeter
-  jobs:
-    - job: RunTest
-      steps:
-        - task: DownloadBuildArtifacts@0
-          inputs:
-            buildType: 'current'
-            downloadType: 'single'
-            artifactName: 'JMeterHome'
-            downloadPath: '$(Pipeline.Workspace)'
+  - stage: CheckoutCode
+    jobs:
+      - job: CheckoutGitHub
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self  # Checkout code from repository
+          - script: |
+              git clone https://github.com/RohitReghunath/AzureDevOps_Demo.git
+              cd AzureDevOps_Demo
+            displayName: 'Clone GitHub Repository and Checkout Test Scripts'
 
-        - script: |
-            echo Running JMeter Test on Windows...
-            cd "$(Build.SourcesDirectory)"
-            "$(JMETER_HOME)\\bin\\jmeter.bat" -n -t "$(Build.SourcesDirectory)\\$(TEST_SCRIPT)" -l "$(Build.SourcesDirectory)\\$(RESULTS_FILE)" -e -o "$(Build.SourcesDirectory)\\$(REPORT_DIR)"
-          displayName: 'Run JMeter Test'
+  - stage: RunJMeterTest
+    jobs:
+      - job: RunTest
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+          - script: |
+              # Run JMeter test with a unique result file
+              $JMETER_HOME/bin/jmeter -n -t $(Build.SourcesDirectory)/AzureDevOps_Demo/Jpetstore_Demo.jmx -l $(Build.ArtifactStagingDirectory)/$(jtlFileName)
+            displayName: 'Run JMeter Performance Test'
 
-        - task: PublishBuildArtifacts@1
-          inputs:
-            PathtoPublish: '$(Build.SourcesDirectory)\$(REPORT_DIR)'
-            ArtifactName: 'JMeterResults'
-            publishLocation: 'Container'
+  - stage: GenerateReport
+    jobs:
+      - job: GenerateHTMLReport
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              # Generate HTML Report from the unique JTL file
+              $JMETER_HOME/bin/jmeter -g $(Build.ArtifactStagingDirectory)/$(jtlFileName) -o $(Build.ArtifactStagingDirectory)/$(reportFolderName)
+            displayName: 'Generate JMeter HTML Report'
+          - task: ArchiveFiles@2
+            inputs:
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/$(reportFolderName)'
+              includeRootFolder: false
+              archiveFile: '$(Build.ArtifactStagingDirectory)/$(reportFolderName).zip'
+            displayName: 'Compress and Archive JMeter Report'
+
+  - stage: Cleanup
+    jobs:
+      - job: CleanupEnvironment
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              # Clean up temporary files
+              rm -rf apache-jmeter-5.6.3
+              rm -f $(Build.ArtifactStagingDirectory)/$(jtlFileName)
+            displayName: 'Cleanup Temporary Files'
