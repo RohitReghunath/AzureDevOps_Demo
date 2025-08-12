@@ -21,12 +21,11 @@ stages:
           vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - script: |
-              # Install dependencies
               echo Installing JMeter...
               curl -L https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.zip -o jmeter.zip
               powershell -Command "Expand-Archive -Path jmeter.zip -DestinationPath ."
-              set JMETER_HOME=$(pwd)\apache-jmeter-5.6.3
-              echo "##vso[task.setvariable variable=JMETER_HOME]$JMETER_HOME"
+              set JMETER_HOME=%cd%\apache-jmeter-5.6.3
+              echo "##vso[task.setvariable variable=JMETER_HOME]%JMETER_HOME%"
             displayName: 'Install JMeter 5.6.3'
 
   - stage: CheckoutCode
@@ -49,7 +48,8 @@ stages:
         steps:
           - checkout: self
           - script: |
-              "%JMETER_HOME%\\bin\\jmeter.bat" -n -t $(Build.SourcesDirectory)\\AzureDevOps_Demo\\Jpetstore_Demo.jmx -l $(Build.ArtifactStagingDirectory)\\$(jtlFileName)
+              echo Running JMeter test...
+              "%JMETER_HOME%\bin\jmeter.bat" -n -t "%cd%\AzureDevOps_Demo\Jpetstore_Demo.jmx" -l "%cd%\$(Build.ArtifactStagingDirectory)\$(jtlFileName)"
             displayName: 'Run JMeter Performance Test'
 
   - stage: GenerateReport
@@ -59,13 +59,14 @@ stages:
           vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - script: |
-              "%JMETER_HOME%\\bin\\jmeter.bat" -g $(Build.ArtifactStagingDirectory)\\$(jtlFileName) -o $(Build.ArtifactStagingDirectory)\\$(reportFolderName)
+              echo Generating JMeter report...
+              "%JMETER_HOME%\bin\jmeter.bat" -g "%cd%\$(Build.ArtifactStagingDirectory)\$(jtlFileName)" -o "%cd%\$(Build.ArtifactStagingDirectory)\$(reportFolderName)"
             displayName: 'Generate JMeter HTML Report'
           - task: ArchiveFiles@2
             inputs:
-              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\\$(reportFolderName)'
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\$(reportFolderName)'
               includeRootFolder: false
-              archiveFile: '$(Build.ArtifactStagingDirectory)\\$(reportFolderName).zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)\$(reportFolderName).zip'
             displayName: 'Compress and Archive JMeter Report'
 
   - stage: Cleanup
@@ -77,5 +78,5 @@ stages:
           - script: |
               # Clean up temporary files
               rmdir /s /q apache-jmeter-5.6.3
-              del $(Build.ArtifactStagingDirectory)\\$(jtlFileName)
+              del "$(Build.ArtifactStagingDirectory)\$(jtlFileName)"
             displayName: 'Cleanup Temporary Files'
