@@ -20,12 +20,6 @@ stages:
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - task: JavaToolInstaller@0
-            inputs:
-              versionSpec: '1.8'
-              jdkArchitectureOption: 'x64'
-              jdkSourceOption: 'PreInstalled'
-            displayName: 'Install JDK 1.8'
           - script: |
               # Install dependencies
               sudo apt-get update
