@@ -18,15 +18,14 @@ stages:
     jobs:
       - job: PrepareEnvironment
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - script: |
               # Install dependencies
-              sudo apt-get update
-              sudo apt-get install -y wget unzip
-              wget https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
-              tar -xvzf apache-jmeter-5.6.3.tgz
-              export JMETER_HOME=$(pwd)/apache-jmeter-5.6.3
+              echo Installing JMeter...
+              curl -L https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.zip -o jmeter.zip
+              powershell -Command "Expand-Archive -Path jmeter.zip -DestinationPath ."
+              set JMETER_HOME=$(pwd)\apache-jmeter-5.6.3
               echo "##vso[task.setvariable variable=JMETER_HOME]$JMETER_HOME"
             displayName: 'Install JMeter 5.6.3'
 
@@ -34,7 +33,7 @@ stages:
     jobs:
       - job: CheckoutGitHub
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - checkout: self  # Checkout code from repository
           - script: |
@@ -46,39 +45,39 @@ stages:
     jobs:
       - job: RunTest
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - checkout: self
           - script: |
               # Run JMeter test with a unique result file
-              $JMETER_HOME/bin/jmeter -n -t $(Build.SourcesDirectory)/AzureDevOps_Demo/Jpetstore_Demo.jmx -l $(Build.ArtifactStagingDirectory)/$(jtlFileName)
+              "%JMETER_HOME%\\bin\\jmeter.bat" -n -t $(Build.SourcesDirectory)\\AzureDevOps_Demo\\Jpetstore_Demo.jmx -l $(Build.ArtifactStagingDirectory)\\$(jtlFileName)
             displayName: 'Run JMeter Performance Test'
 
   - stage: GenerateReport
     jobs:
       - job: GenerateHTMLReport
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - script: |
               # Generate HTML Report from the unique JTL file
-              $JMETER_HOME/bin/jmeter -g $(Build.ArtifactStagingDirectory)/$(jtlFileName) -o $(Build.ArtifactStagingDirectory)/$(reportFolderName)
+              "%JMETER_HOME%\\bin\\jmeter.bat" -g $(Build.ArtifactStagingDirectory)\\$(jtlFileName) -o $(Build.ArtifactStagingDirectory)\\$(reportFolderName)
             displayName: 'Generate JMeter HTML Report'
           - task: ArchiveFiles@2
             inputs:
-              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/$(reportFolderName)'
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\\$(reportFolderName)'
               includeRootFolder: false
-              archiveFile: '$(Build.ArtifactStagingDirectory)/$(reportFolderName).zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)\\$(reportFolderName).zip'
             displayName: 'Compress and Archive JMeter Report'
 
   - stage: Cleanup
     jobs:
       - job: CleanupEnvironment
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: 'windows-latest'  # Change to Windows VM
         steps:
           - script: |
               # Clean up temporary files
-              rm -rf apache-jmeter-5.6.3
-              rm -f $(Build.ArtifactStagingDirectory)/$(jtlFileName)
+              rmdir /s /q apache-jmeter-5.6.3
+              del $(Build.ArtifactStagingDirectory)\\$(jtlFileName)
             displayName: 'Cleanup Temporary Files'
