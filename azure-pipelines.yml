@@ -9,26 +9,38 @@ schedules:
       - main
 
 variables:
+  JMETER_VERSION: '5.6.3'
+  JMETER_HOME: '$(Pipeline.Workspace)\\JMeterHome'
+  TEST_SCRIPT: 'Jpetstore_Demo.jmx'
+  RESULTS_FILE: 'results-$(Build.BuildId).jtl'  # Unique JTL file name
+  REPORT_DIR: 'jmeter-report-$(Build.BuildId)'  # Unique report folder name
   uniqueTimestamp: "$(Build.BuildId)"  # Using Build.BuildId as unique identifier
-  jtlFileName: "result-$(Build.BuildId).jtl"  # JTL file name using BuildId
-  reportFolderName: "jmeter-report-$(Build.BuildId)"  # Unique report folder name using BuildId
 
 stages:
-  - stage: Prepare
+  # Stage 1: Install JMeter
+  - stage: InstallJMeter
+    displayName: 'Install JMeter'
     jobs:
-      - job: PrepareEnvironment
-        pool:
-          vmImage: 'windows-latest'  # Change to Windows VM
+      - job: InstallJMeter
         steps:
           - script: |
               echo Installing JMeter...
-              curl -L https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.zip -o jmeter.zip
+              cd "$(Build.SourcesDirectory)"
+              curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).zip -o jmeter.zip
               powershell -Command "Expand-Archive -Path jmeter.zip -DestinationPath ."
-              set JMETER_HOME=%cd%\apache-jmeter-5.6.3
+              set JMETER_HOME=%cd%\apache-jmeter-$(JMETER_VERSION)
               echo "##vso[task.setvariable variable=JMETER_HOME]%JMETER_HOME%"
-            displayName: 'Install JMeter 5.6.3'
+            displayName: 'Download & Extract JMeter'
 
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.SourcesDirectory)\\apache-jmeter-$(JMETER_VERSION)'
+              ArtifactName: 'JMeterHome'
+              publishLocation: 'Container'
+
+  # Stage 2: Checkout GitHub Repository
   - stage: CheckoutCode
+    displayName: 'Checkout GitHub Repository'
     jobs:
       - job: CheckoutGitHub
         pool:
@@ -40,7 +52,10 @@ stages:
               cd AzureDevOps_Demo
             displayName: 'Clone GitHub Repository and Checkout Test Scripts'
 
+  # Stage 3: Run JMeter Test
   - stage: RunJMeterTest
+    displayName: 'Run JMeter Test'
+    dependsOn: InstallJMeter
     jobs:
       - job: RunTest
         pool:
@@ -49,10 +64,13 @@ stages:
           - checkout: self
           - script: |
               echo Running JMeter test...
-              "%JMETER_HOME%\bin\jmeter.bat" -n -t "%cd%\AzureDevOps_Demo\Jpetstore_Demo.jmx" -l "%cd%\$(Build.ArtifactStagingDirectory)\$(jtlFileName)"
+              "%JMETER_HOME%\bin\jmeter.bat" -n -t "%cd%\AzureDevOps_Demo\$(TEST_SCRIPT)" -l "%cd%\$(Build.ArtifactStagingDirectory)\$(RESULTS_FILE)"
             displayName: 'Run JMeter Performance Test'
 
+  # Stage 4: Generate Report
   - stage: GenerateReport
+    displayName: 'Generate JMeter HTML Report'
+    dependsOn: RunJMeterTest
     jobs:
       - job: GenerateHTMLReport
         pool:
@@ -60,16 +78,19 @@ stages:
         steps:
           - script: |
               echo Generating JMeter report...
-              "%JMETER_HOME%\bin\jmeter.bat" -g "%cd%\$(Build.ArtifactStagingDirectory)\$(jtlFileName)" -o "%cd%\$(Build.ArtifactStagingDirectory)\$(reportFolderName)"
+              "%JMETER_HOME%\bin\jmeter.bat" -g "%cd%\$(Build.ArtifactStagingDirectory)\$(RESULTS_FILE)" -o "%cd%\$(Build.ArtifactStagingDirectory)\$(REPORT_DIR)"
             displayName: 'Generate JMeter HTML Report'
           - task: ArchiveFiles@2
             inputs:
-              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\$(reportFolderName)'
+              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\$(REPORT_DIR)'
               includeRootFolder: false
-              archiveFile: '$(Build.ArtifactStagingDirectory)\$(reportFolderName).zip'
+              archiveFile: '$(Build.ArtifactStagingDirectory)\$(REPORT_DIR).zip'
             displayName: 'Compress and Archive JMeter Report'
 
+  # Stage 5: Cleanup
   - stage: Cleanup
+    displayName: 'Cleanup Temporary Files'
+    dependsOn: GenerateReport
     jobs:
       - job: CleanupEnvironment
         pool:
@@ -77,6 +98,6 @@ stages:
         steps:
           - script: |
               # Clean up temporary files
-              rmdir /s /q apache-jmeter-5.6.3
-              del "$(Build.ArtifactStagingDirectory)\$(jtlFileName)"
+              rmdir /s /q apache-jmeter-$(JMETER_VERSION)
+              del "$(Build.ArtifactStagingDirectory)\$(RESULTS_FILE)"
             displayName: 'Cleanup Temporary Files'
