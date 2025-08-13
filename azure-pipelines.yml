@@ -9,7 +9,7 @@ pool:
 variables:
   JMETER_VERSION: '5.6.3'
   JMETER_HOME: '$(Pipeline.Workspace)\\apache-jmeter-$(JMETER_VERSION)'
-  TEST_SCRIPT: 'Jpetstore_Demo.jmx'
+  TEST_SCRIPT: 'PetStore.jmx'
   RESULTS_FILE: 'results.jtl'
   REPORT_DIR: 'html-report'
 
