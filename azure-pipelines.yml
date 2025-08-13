@@ -1,103 +1,48 @@
 trigger:
-- none  # Trigger is defined in schedule, no auto trigger on push.
-
-schedules:
-- cron: "0 0 * * *"  # This triggers every day at midnight (adjust the cron expression as needed).
-  displayName: "Daily Trigger"
   branches:
     include:
-      - main
-
+      - main  # Runs pipeline on commits to main
+ 
+pool:
+  vmImage: 'windows-latest'
+ 
 variables:
   JMETER_VERSION: '5.6.3'
-  JMETER_HOME: '$(Pipeline.Workspace)\\JMeterHome'
+  JMETER_HOME: '$(Pipeline.Workspace)\\apache-jmeter-$(JMETER_VERSION)'
   TEST_SCRIPT: 'Jpetstore_Demo.jmx'
-  RESULTS_FILE: 'results-$(Build.BuildId).jtl'  # Unique JTL file name
-  REPORT_DIR: 'jmeter-report-$(Build.BuildId)'  # Unique report folder name
-  uniqueTimestamp: "$(Build.BuildId)"  # Using Build.BuildId as unique identifier
-
-stages:
-  # Stage 1: Install JMeter
-  - stage: InstallJMeter
-    displayName: 'Install JMeter'
-    jobs:
-      - job: InstallJMeter
-        steps:
-          - script: |
-              echo Installing JMeter...
-              cd "$(Build.SourcesDirectory)"
-              curl -L https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).zip -o jmeter.zip
-              powershell -Command "Expand-Archive -Path jmeter.zip -DestinationPath ."
-              set JMETER_HOME=%cd%\apache-jmeter-$(JMETER_VERSION)
-              echo "##vso[task.setvariable variable=JMETER_HOME]%JMETER_HOME%"
-            displayName: 'Download & Extract JMeter'
-
-          - task: PublishBuildArtifacts@1
-            inputs:
-              PathtoPublish: '$(Build.SourcesDirectory)/apache-jmeter-$(JMETER_VERSION)'  # Use forward slash
-              ArtifactName: 'JMeterHome'
-              publishLocation: 'Container'
-
-  # Stage 2: Checkout GitHub Repository
-  - stage: CheckoutCode
-    displayName: 'Checkout GitHub Repository'
-    jobs:
-      - job: CheckoutGitHub
-        pool:
-          vmImage: 'windows-latest'  # Change to Windows VM
-        steps:
-          - checkout: self  # Checkout code from repository
-          - script: |
-              git clone https://github.com/RohitReghunath/AzureDevOps_Demo.git
-              cd AzureDevOps_Demo
-            displayName: 'Clone GitHub Repository and Checkout Test Scripts'
-
-  # Stage 3: Run JMeter Test
-  - stage: RunJMeterTest
-    displayName: 'Run JMeter Test'
-    dependsOn: InstallJMeter
-    jobs:
-      - job: RunTest
-        pool:
-          vmImage: 'windows-latest'  # Change to Windows VM
-        steps:
-          - checkout: self
-          - script: |
-              echo Running JMeter test...
-              "%JMETER_HOME%\bin\jmeter.bat" -n -t "%cd%\AzureDevOps_Demo\$(TEST_SCRIPT)" -l "%cd%\$(Build.ArtifactStagingDirectory)\$(RESULTS_FILE)"
-            displayName: 'Run JMeter Performance Test'
-
-  # Stage 4: Generate Report
-  - stage: GenerateReport
-    displayName: 'Generate JMeter HTML Report'
-    dependsOn: RunJMeterTest
-    jobs:
-      - job: GenerateHTMLReport
-        pool:
-          vmImage: 'windows-latest'  # Change to Windows VM
-        steps:
-          - script: |
-              echo Generating JMeter report...
-              "%JMETER_HOME%\bin\jmeter.bat" -g "%cd%\$(Build.ArtifactStagingDirectory)\$(RESULTS_FILE)" -o "%cd%\$(Build.ArtifactStagingDirectory)\$(REPORT_DIR)"
-            displayName: 'Generate JMeter HTML Report'
-          - task: ArchiveFiles@2
-            inputs:
-              rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\$(REPORT_DIR)'
-              includeRootFolder: false
-              archiveFile: '$(Build.ArtifactStagingDirectory)\$(REPORT_DIR).zip'
-            displayName: 'Compress and Archive JMeter Report'
-
-  # Stage 5: Cleanup
-  - stage: Cleanup
-    displayName: 'Cleanup Temporary Files'
-    dependsOn: GenerateReport
-    jobs:
-      - job: CleanupEnvironment
-        pool:
-          vmImage: 'windows-latest'  # Change to Windows VM
-        steps:
-          - script: |
-              # Clean up temporary files
-              rmdir /s /q apache-jmeter-$(JMETER_VERSION)
-              del "$(Build.ArtifactStagingDirectory)\$(RESULTS_FILE)"
-            displayName: 'Cleanup Temporary Files'
+  RESULTS_FILE: 'results.jtl'
+  REPORT_DIR: 'html-report'
+ 
+steps:
+  - task: PowerShell@2
+    displayName: 'Show Pipeline.Workspace Path'
+    inputs:
+      targetType: 'inline'
+      script: |
+        Write-Host "Pipeline.Workspace: $(Pipeline.Workspace)"
+        Write-Host "Build.SourcesDirectory: $(Build.SourcesDirectory)"
+ 
+  - task: PowerShell@2
+    displayName: 'Download Apache JMeter'
+    inputs:
+      targetType: 'inline'
+      script: |
+        Invoke-WebRequest -Uri "https://downloads.apache.org/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).zip" -OutFile jmeter.zip
+        Expand-Archive jmeter.zip -DestinationPath $(Pipeline.Workspace)
+ 
+  - task: PowerShell@2
+    displayName: 'Run JMeter Test Plan'
+    inputs:
+      targetType: 'inline'
+      script: |
+        $env:JMETER_HOME = "$(JMETER_HOME)"
+        Write-Host "JMETER_HOME is set to: $env:JMETER_HOME"
+        cd "$env:JMETER_HOME\\bin"
+        .\jmeter.bat -n -t "$(Build.SourcesDirectory)\\$(TEST_SCRIPT)" -l "$(Build.SourcesDirectory)\\$(RESULTS_FILE)" -e -o "$(Build.SourcesDirectory)\\$(REPORT_DIR)"
+ 
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish JMeter Results'
+    inputs:
+      PathtoPublish: '$(Build.SourcesDirectory)\\$(REPORT_DIR)'
+      ArtifactName: 'JMeterReport'
+      publishLocation: 'Container'
