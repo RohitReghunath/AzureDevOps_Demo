@@ -4,33 +4,16 @@ trigger:
       - main  # Runs pipeline on commits to main
 
 pool:
-  name: Default
+  name: Default  # Use the self-hosted agent pool
 
 variables:
   JMETER_VERSION: '5.6.3'
-  JMETER_HOME: '$(Pipeline.Workspace)\\apache-jmeter-$(JMETER_VERSION)'
+  JMETER_HOME: 'C:\\apache-jmeter-$(JMETER_VERSION)'  # Set local JMeter path
   TEST_SCRIPT: 'PetStore.jmx'
   RESULTS_FILE: 'results.jtl'
   REPORT_DIR: 'html-report'
 
 steps:
-  # Cleanup step to clear the JMeter folder
-  - task: PowerShell@2
-    displayName: 'Cleanup JMeter Folder'
-    inputs:
-      targetType: 'inline'
-      script: |
-        $workspacePath = "$(Pipeline.Workspace)"
-        $jmeterDir = "$workspacePath\\apache-jmeter-$(JMETER_VERSION)"
-        
-        # Check if the JMeter directory exists and remove it
-        if (Test-Path $jmeterDir) {
-            Write-Host "Removing existing JMeter directory: $jmeterDir"
-            Remove-Item -Recurse -Force $jmeterDir
-        } else {
-            Write-Host "No existing JMeter directory to remove."
-        }
-
   # Show Pipeline.Workspace Path
   - task: PowerShell@2
     displayName: 'Show Pipeline.Workspace Path'
@@ -40,15 +23,14 @@ steps:
         Write-Host "Pipeline.Workspace: $(Pipeline.Workspace)"
         Write-Host "Build.SourcesDirectory: $(Build.SourcesDirectory)"
 
-  # Download Apache JMeter
+  # Skip download step as JMeter is already locally available
   - task: PowerShell@2
-    displayName: 'Download Apache JMeter'
+    displayName: 'Set JMETER_HOME'
     inputs:
       targetType: 'inline'
       script: |
-        Invoke-WebRequest -Uri "https://downloads.apache.org/jmeter/binaries/apache-jmeter-$(JMETER_VERSION).zip" -OutFile jmeter.zip
-        Expand-Archive jmeter.zip -DestinationPath $(Pipeline.Workspace)
-
+        Write-Host "Setting JMETER_HOME to: $(JMETER_HOME)"
+        
   # Run JMeter Test Plan
   - task: PowerShell@2
     displayName: 'Run JMeter Test Plan'
